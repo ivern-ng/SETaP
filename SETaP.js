@@ -1,12 +1,15 @@
 let cart = [];
+let menu = [];
 
-const menu = [
-    { id: 1, name: 'Burger', price: 10 },
-    { id: 2, name: 'Steak', price: 12 },
-    { id: 3, name: 'Salad', price: 8 },
-    { id: 4, name: 'Fries', price: 5 },
-    { id: 5, name: 'Soda', price: 2 }
-];
+function fetchMenu() {
+    fetch('http://localhost:3000/menu')
+        .then(response => response.json())
+        .then(data => {
+            menu = data;
+            viewMenu();
+        })
+        .catch(error => console.error('Error:', error));
+}
 
 function viewMenu() {
     let menuHtml = '<h2>Menu</h2><ul>';
@@ -27,21 +30,37 @@ function viewMenu() {
 }
 
 function addToCart(itemId) {
-    const item = menu.find(i => i.id === itemId);
     const quantity = parseInt(document.getElementById(`quantity-${itemId}`).value);
     
-    const existingItem = cart.find(i => i.id === itemId);
-    if (existingItem) {
-        existingItem.quantity += quantity;
-    } else {
-        cart.push({...item, quantity: quantity});
-    }
-    
-    alert(`${quantity} ${item.name}(s) added to cart!`);
-    updateCartCounter();
+    fetch('http://localhost:3000/cart', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({id: itemId, quantity: quantity}),
+    })
+    .then(response => response.json())
+    .then(data => {
+        cart = data;
+        alert(`${quantity} item(s) added to cart!`);
+        updateCartCounter();
+    })
+    .catch((error) => {
+        console.error('Error:', error);
+    });
 }
 
 function viewCart() {
+    fetch('http://localhost:3000/cart')
+        .then(response => response.json())
+        .then(data => {
+            cart = data;
+            updateCartDisplay();
+        })
+        .catch(error => console.error('Error:', error));
+}
+
+function updateCartDisplay() {
     document.getElementById('menuDisplay').innerHTML = '';
     
     if (cart.length === 0) {
@@ -51,43 +70,51 @@ function viewCart() {
 
     let cartHtml = '<h2>Cart</h2><ul>';
     let total = 0;
-    cart.forEach((item, index) => {
+    cart.forEach((item) => {
         const itemTotal = item.price * item.quantity;
         cartHtml += `
             <li>
                 ${item.name} - $${item.price} x ${item.quantity} = $${itemTotal}
-                <button onclick="removeFromCart(${index})">Remove</button>
+                <button onclick="removeFromCart(${item.id})">Remove</button>
             </li>`;
         total += itemTotal;
     });
     cartHtml += `</ul><p>Total: $${total.toFixed(2)}</p>`;
-    cartHtml += '<button onclick="viewMenu()">Back to Menu</button>';
+    cartHtml += '<button onclick="fetchMenu()">Back to Menu</button>';
     cartHtml += '<button id="checkoutBtn" onclick="checkout()">Checkout</button>';
 
     document.getElementById('cartDisplay').innerHTML = cartHtml;
 }
 
-function removeFromCart(index) {
-    cart.splice(index, 1);
-    updateCartCounter();
-    viewCart();
+function removeFromCart(itemId) {
+    fetch(`http://localhost:3000/cart/${itemId}`, {
+        method: 'DELETE',
+    })
+    .then(response => response.json())
+    .then(data => {
+        cart = data;
+        updateCartCounter();
+        updateCartDisplay();
+    })
+    .catch((error) => {
+        console.error('Error:', error);
+    });
 }
 
-function restartOrder() {
-    if (confirm("Are you sure you want to clear your cart and start over?")) {
+function checkout() {
+    fetch('http://localhost:3000/checkout', {
+        method: 'POST',
+    })
+    .then(response => response.json())
+    .then(data => {
+        alert(`Checkout successful! Total: $${data.total.toFixed(2)}`);
         cart = [];
         updateCartCounter();
-        viewMenu();
-    }
-}
-
-function adminLogin() {
-    const password = prompt("Enter admin password:");
-    if (password === "admin123") {
-        alert("Admin login successful!");
-    } else {
-        alert("Incorrect password!");
-    }
+        fetchMenu();
+    })
+    .catch((error) => {
+        console.error('Error:', error);
+    });
 }
 
 function updateCartCounter() {
@@ -103,35 +130,10 @@ function updateCartCounter() {
 }
 
 // Initialize
-document.getElementById('viewMenuBtn').onclick = viewMenu;
+document.getElementById('viewMenuBtn').onclick = fetchMenu;
 document.getElementById('viewCartBtn').onclick = viewCart;
 document.getElementById('adminLoginBtn').onclick = adminLogin;
 
 // Load menu on page load
-viewMenu();
+fetchMenu();
 updateCartCounter();
-
-function checkout() {
-    if (cart.length === 0) {
-        alert("Your cart is empty!");
-        return;
-    }
-    
-    let orderSummary = "Order Summary:\n\n";
-    let total = 0;
-    
-    cart.forEach(item => {
-        const itemTotal = item.price * item.quantity;
-        orderSummary += `${item.name} x${item.quantity}: $${itemTotal.toFixed(2)}\n`;
-        total += itemTotal;
-    });
-    
-    orderSummary += `\nTotal: $${total.toFixed(2)}`;
-    
-    alert(orderSummary + "\n\nThank you for your order!");
-    
-    // Clear the cart after checkout
-    cart = [];
-    updateCartCounter();
-    viewMenu();
-}
